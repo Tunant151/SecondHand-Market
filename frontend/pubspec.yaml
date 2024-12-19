@@ -1,0 +1,38 @@
+name: frontend
+description: "A new Flutter project."
+# The following line prevents the package from being accidentally published to
+# pub.dev using `flutter pub publish`. This is preferred for private packages.
+publish_to: "none" # Remove this line if you wish to publish to pub.dev
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.5.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  provider: ^6.0.5 # For state management
+  dio: ^5.2.0 # For HTTP requests
+  shared_preferences: ^2.1.0 # For caching data locally
+  google_fonts: ^5.0.0 # Custom fonts
+  font_awesome_flutter: ^10.5.0 # Icons for UI
+
+  # additional
+  image_picker: ^0.8.8+1 # For uploading product images
+  fluttertoast: ^8.2.1 # For user feedback
+  intl: ^0.18.0 # For date/time formatting
+  cached_network_image: ^3.2.3 # Image caching
+  fl_chart: ^0.69.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/products/
