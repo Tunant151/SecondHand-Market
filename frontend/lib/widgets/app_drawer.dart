@@ -1,35 +1,114 @@
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
+import '../models/user.dart';
+import '../utils/logger.dart';
 
-class AppDrawer extends StatelessWidget {
+class AppDrawer extends StatefulWidget {
   const AppDrawer({Key? key}) : super(key: key);
 
   @override
+  State<AppDrawer> createState() => _AppDrawerState();
+}
+
+class _AppDrawerState extends State<AppDrawer> {
+  User? currentUser;
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      final user = await AuthService.getCurrentUser();
+      logger.i('Loaded user data: ${user?.toJson()}');
+      if (mounted) {
+        setState(() {
+          currentUser = user;
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      logger.e('Error loading user data: $e');
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    logger.d('Current user profile image URL: ${currentUser?.profileImageUrl}');
+
     return Drawer(
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
-          const DrawerHeader(
-            decoration: BoxDecoration(
+          DrawerHeader(
+            decoration: const BoxDecoration(
               color: Colors.blue,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                CircleAvatar(
-                  radius: 30,
-                  backgroundColor: Colors.white,
-                  child: Icon(Icons.person, size: 35, color: Colors.blue),
-                ),
-                SizedBox(height: 10),
-                Text(
-                  'Second Hand Market',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
+                if (isLoading)
+                  const CircularProgressIndicator(color: Colors.white)
+                else if (currentUser != null) ...[
+                  CircleAvatar(
+                    radius: 30,
+                    backgroundColor: Colors.white,
+                    backgroundImage: currentUser?.profileImageUrl != null
+                        ? NetworkImage(currentUser!.profileImageUrl!)
+                        : null,
+                    onBackgroundImageError: currentUser?.profileImageUrl != null
+                        ? (exception, stackTrace) {
+                            logger.e('Error loading image: $exception');
+                            setState(() {
+                              currentUser =
+                                  currentUser?.copyWith(profileImageUrl: null);
+                            });
+                          }
+                        : null,
+                    child: currentUser?.profileImageUrl == null
+                        ? const Icon(Icons.person, size: 35, color: Colors.blue)
+                        : null,
                   ),
-                ),
+                  const SizedBox(height: 10),
+                  Text(
+                    currentUser!.name,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    currentUser!.email,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 14,
+                    ),
+                  ),
+                ] else ...[
+                  const CircleAvatar(
+                    radius: 30,
+                    backgroundColor: Colors.white,
+                    child: Icon(Icons.person, size: 35, color: Colors.blue),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Second Hand Market',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -79,8 +158,11 @@ class AppDrawer extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.logout),
             title: const Text('Logout'),
-            onTap: () {
-              // TODO: Implement logout
+            onTap: () async {
+              await AuthService.logout();
+              if (mounted) {
+                Navigator.pushReplacementNamed(context, '/login');
+              }
             },
           ),
           ListTile(

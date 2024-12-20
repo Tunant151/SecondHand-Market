@@ -1,13 +1,59 @@
 import 'package:flutter/material.dart';
-import 'package:frontend/widgets/app_drawer.dart';
+import '../services/category_service.dart';
+import '../services/product_service.dart';
+import '../models/category.dart';
+import '../models/product.dart';
+import '../utils/logger.dart';
+import '../widgets/app_drawer.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
 
   @override
-  Widget build(BuildContext context) {
-    final ScrollController scrollController = ScrollController();
+  State<HomeScreen> createState() => _HomeScreenState();
+}
 
+class _HomeScreenState extends State<HomeScreen> {
+  final ScrollController scrollController = ScrollController();
+  List<Category> categories = [];
+  List<Product> products = [];
+  bool isLoading = true;
+  String? error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    try {
+      setState(() {
+        isLoading = true;
+        error = null;
+      });
+
+      final categoriesFuture = CategoryService.getCategories();
+      final productsFuture = ProductService.getFeaturedProducts();
+
+      final results = await Future.wait([categoriesFuture, productsFuture]);
+
+      setState(() {
+        categories = results[0] as List<Category>;
+        products = results[1] as List<Product>;
+        isLoading = false;
+      });
+    } catch (e) {
+      logger.e('Error loading data: $e');
+      setState(() {
+        error = 'Failed to load data. Please try again.';
+        isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.blue,
@@ -30,22 +76,22 @@ class HomeScreen extends StatelessWidget {
                 const Icon(Icons.shopping_cart_outlined),
                 Positioned(
                   right: 0,
-                  top: 0,
+                  top: 2,
                   child: Container(
                     padding: const EdgeInsets.all(1),
                     decoration: BoxDecoration(
                       color: Colors.red,
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: BorderRadius.circular(5),
                     ),
                     constraints: const BoxConstraints(
-                      minWidth: 12,
-                      minHeight: 12,
+                      minWidth: 10,
+                      minHeight: 10,
                     ),
                     child: const Text(
                       '2',
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 8,
+                        fontSize: 7,
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -60,147 +106,166 @@ class HomeScreen extends StatelessWidget {
           ),
         ],
       ),
+      drawer: const AppDrawer(),
+      body: RefreshIndicator(
+        onRefresh: _loadData,
+        child: isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : error != null
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(error!),
+                        ElevatedButton(
+                          onPressed: _loadData,
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  )
+                : SingleChildScrollView(
+                    controller: scrollController,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Search Bar
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          color: Colors.blue,
+                          child: TextField(
+                            decoration: InputDecoration(
+                              hintText: 'Search products...',
+                              prefixIcon: const Icon(Icons.search),
+                              filled: true,
+                              fillColor: Colors.white,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(30),
+                                borderSide: BorderSide.none,
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        // Categories
+                        Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Categories',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              SizedBox(
+                                height: 100,
+                                child: ListView.builder(
+                                  scrollDirection: Axis.horizontal,
+                                  itemCount: categories.length,
+                                  itemBuilder: (context, index) {
+                                    final category = categories[index];
+                                    return _buildCategoryCard(
+                                      category.name,
+                                      category.icon,
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // Featured Products
+                        Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Featured Products',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              products.isEmpty
+                                  ? _buildNoProducts()
+                                  : GridView.builder(
+                                      shrinkWrap: true,
+                                      physics:
+                                          const NeverScrollableScrollPhysics(),
+                                      gridDelegate:
+                                          const SliverGridDelegateWithFixedCrossAxisCount(
+                                        crossAxisCount: 2,
+                                        childAspectRatio: 0.75,
+                                        crossAxisSpacing: 10,
+                                        mainAxisSpacing: 10,
+                                      ),
+                                      itemCount: products.length,
+                                      itemBuilder: (context, index) {
+                                        final product = products[index];
+                                        return _buildProductCard(
+                                            context, product);
+                                      },
+                                    ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          // Will implement sell item screen
           Navigator.pushNamed(context, '/sell-item');
         },
         child: const Icon(Icons.add),
         backgroundColor: Colors.blue,
       ),
-      drawer: const AppDrawer(),
-      body: SingleChildScrollView(
-        controller: scrollController,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Search Bar
-            Container(
-              padding: const EdgeInsets.all(16),
-              color: Colors.blue,
-              child: TextField(
-                decoration: InputDecoration(
-                  hintText: 'Search products...',
-                  prefixIcon: const Icon(Icons.search),
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(30),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
-            ),
-
-            // Categories
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Categories',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    height: 100,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      children: [
-                        _buildCategoryCard('Electronics', Icons.devices),
-                        _buildCategoryCard('Fashion', Icons.checkroom),
-                        _buildCategoryCard('Home', Icons.chair),
-                        _buildCategoryCard('Books', Icons.book),
-                        _buildCategoryCard('Sports', Icons.sports_soccer),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Featured Products
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Featured Products',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      childAspectRatio: 0.75,
-                      crossAxisSpacing: 10,
-                      mainAxisSpacing: 10,
-                    ),
-                    itemCount: 5,
-                    itemBuilder: (context, index) {
-                      return _buildProductCard(context, index + 1);
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
-  Widget _buildCategoryCard(String title, IconData icon) {
-    return Container(
-      width: 80,
-      margin: const EdgeInsets.only(right: 8),
+  Widget _buildCategoryCard(String name, String iconName) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 16),
       child: Column(
         children: [
           Container(
-            padding: const EdgeInsets.all(16),
+            width: 60,
+            height: 60,
             decoration: BoxDecoration(
               color: Colors.blue.withOpacity(0.1),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: Colors.blue),
+            child: Icon(
+              Icons.category,
+              color: Colors.blue,
+              size: 30,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
-            title,
-            textAlign: TextAlign.center,
+            name,
             style: const TextStyle(fontSize: 12),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildProductCard(BuildContext context, int imageNumber) {
+  Widget _buildProductCard(BuildContext context, Product product) {
     return GestureDetector(
       onTap: () {
         Navigator.pushNamed(
           context,
           '/product-detail',
-          arguments: {
-            'productName': 'Product $imageNumber',
-            'productPrice': 'MWK ${(imageNumber * 25000)}',
-            'imageUrls': ['assets/images/products/product$imageNumber.png'],
-            'sellerName': 'John Doe',
-            'sellerContact': '+265 999 999 999',
-            'description':
-                'This is product $imageNumber description. It includes all the details about the product.',
-          },
+          arguments: product,
         );
       },
       child: Card(
@@ -215,37 +280,17 @@ class HomeScreen extends StatelessWidget {
             ClipRRect(
               borderRadius:
                   const BorderRadius.vertical(top: Radius.circular(12)),
-              child: Image.asset(
-                'assets/images/products/product$imageNumber.png',
-                height: 120,
-                width: double.infinity,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    height: 120,
-                    width: double.infinity,
-                    color: Colors.grey[200],
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.image_not_supported_outlined,
-                          size: 40,
-                          color: Colors.grey[400],
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'No Image',
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
+              child: product.images.isNotEmpty
+                  ? Image.network(
+                      product.images[0],
+                      height: 120,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return _buildErrorImage();
+                      },
+                    )
+                  : _buildErrorImage(),
             ),
             Padding(
               padding: const EdgeInsets.all(8.0),
@@ -254,7 +299,7 @@ class HomeScreen extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    'Product $imageNumber',
+                    product.name,
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
@@ -264,10 +309,7 @@ class HomeScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'MWK ${(imageNumber * 25000).toString().replaceAllMapped(
-                          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-                          (Match m) => '${m[1]},',
-                        )}',
+                    'MWK ${product.price.toStringAsFixed(2)}',
                     style: const TextStyle(
                       color: Colors.green,
                       fontWeight: FontWeight.bold,
@@ -281,7 +323,7 @@ class HomeScreen extends StatelessWidget {
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
-                          'Lilongwe',
+                          product.district,
                           style: TextStyle(
                             color: Colors.grey[600],
                             fontSize: 12,
@@ -297,6 +339,66 @@ class HomeScreen extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildErrorImage() {
+    return Container(
+      height: 120,
+      width: double.infinity,
+      color: Colors.grey[200],
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.image_not_supported_outlined,
+            size: 40,
+            color: Colors.grey[400],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'No Image',
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNoProducts() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const SizedBox(height: 40),
+          Icon(
+            Icons.shopping_bag_outlined,
+            size: 80,
+            color: Colors.grey[400],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No Products Found',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey[600],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Be the first to sell something!',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey[500],
+            ),
+          ),
+          const SizedBox(height: 24),
+        ],
       ),
     );
   }
